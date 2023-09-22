@@ -1,37 +1,37 @@
-/* Usage example in flake.nix:
+/*
+Usage example in flake.nix:
 
-   {
-     inputs = {
-       home-manager.url = "github:nix-community/home-manager";
-       nix-doom-emacs.url = "github:nix-community/nix-doom-emacs";
-     };
+{
+  inputs = {
+    home-manager.url = "github:nix-community/home-manager";
+    nix-doom-emacs.url = "github:nix-community/nix-doom-emacs";
+  };
 
-     outputs = {
-       self,
-       nixpkgs,
-       home-manager,
-       nix-doom-emacs,
-       ...
-     }: {
-       nixosConfigurations.exampleHost = nixpkgs.lib.nixosSystem {
-         system = "x86_64-linux";
-         modules = [
-           home-manager.nixosModules.home-manager
-           {
-             home-manager.users.exampleUser = { pkgs, ... }: {
-               imports = [ nix-doom-emacs.hmModule ];
-               home.doom-emacs = {
-                 enable = true;
-                 doomPrivateDir = ./path/to/doom.d;
-               };
-             };
-           }
-         ];
-       };
-     };
-   }
+  outputs = {
+    self,
+    nixpkgs,
+    home-manager,
+    nix-doom-emacs,
+    ...
+  }: {
+    nixosConfigurations.exampleHost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        home-manager.nixosModules.home-manager
+        {
+          home-manager.users.exampleUser = { pkgs, ... }: {
+            imports = [ nix-doom-emacs.hmModule ];
+            home.doom-emacs = {
+              enable = true;
+              doomPrivateDir = ./path/to/doom.d;
+            };
+          };
+        }
+      ];
+    };
+  };
+}
 */
-
 {
   description = "nix-doom-emacs home-manager module";
 
@@ -57,7 +57,7 @@
     explain-pause-mode.flake = false;
     format-all.url = "github:lassik/emacs-format-all-the-code/47d862d40a088ca089c92cd393c6dca4628f87d3";
     format-all.flake = false;
-    nix-straight.url = "github:nix-community/nix-straight.el";
+    nix-straight.url = "github:prmadev/nix-straight.el?ref=pgtk-patch";
     nix-straight.flake = false;
     nose.url = "github:emacsattic/nose";
     nose.flake = false;
@@ -88,41 +88,47 @@
     flake-compat.flake = false;
   };
 
-  outputs = { self, nixpkgs, flake-utils, ... }@inputs:
-    let inherit (flake-utils.lib) eachDefaultSystem mkApp;
-    in eachDefaultSystem (system:
-      let pkgs = import nixpkgs { inherit system; };
-      in {
-        apps = {
-          default = self.outputs.apps.${system}.doom-emacs-example;
-          doom-emacs-example = mkApp {
-            drv = self.outputs.packages.${system}.doom-emacs-example;
-            exePath = "/bin/emacs";
-          };
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+    ...
+  } @ inputs: let
+    inherit (flake-utils.lib) eachDefaultSystem mkApp;
+  in
+    eachDefaultSystem (system: let
+      pkgs = import nixpkgs {inherit system;};
+    in {
+      apps = {
+        default = self.outputs.apps.${system}.doom-emacs-example;
+        doom-emacs-example = mkApp {
+          drv = self.outputs.packages.${system}.doom-emacs-example;
+          exePath = "/bin/emacs";
         };
-
-        devShells.default = pkgs.mkShell {
-          buildInputs =
-            [ (pkgs.python3.withPackages (ps: with ps; [ PyGithub ])) ];
-        };
-
-        package = { ... }@args:
-          pkgs.lib.warn ''
-            nix-doom-emacs no longer supports the deprecated `package` flake output.
-            It will be removed after the release of NixOS 23.05.
-
-            Please use `packages.${system}.default.override { ... }` instead!
-          ''
-          (pkgs.callPackage self args);
-
-        packages = {
-          default = self.outputs.packages.${system}.doom-emacs-example;
-          doom-emacs-example = pkgs.callPackage self {
-            doomPrivateDir = ./test/doom.d;
-          };
-        };
-        checks = import ./checks.nix { inherit system; } inputs;
-      }) // {
-        hmModule = import ./modules/home-manager.nix inputs;
       };
+
+      devShells.default = pkgs.mkShell {
+        buildInputs = [(pkgs.python3.withPackages (ps: with ps; [PyGithub]))];
+      };
+
+      package = {...} @ args:
+        pkgs.lib.warn ''
+          nix-doom-emacs no longer supports the deprecated `package` flake output.
+          It will be removed after the release of NixOS 23.05.
+
+          Please use `packages.${system}.default.override { ... }` instead!
+        ''
+        (pkgs.callPackage self args);
+
+      packages = {
+        default = self.outputs.packages.${system}.doom-emacs-example;
+        doom-emacs-example = pkgs.callPackage self {
+          doomPrivateDir = ./test/doom.d;
+        };
+      };
+      checks = import ./checks.nix {inherit system;} inputs;
+    })
+    // {
+      hmModule = import ./modules/home-manager.nix inputs;
+    };
 }
